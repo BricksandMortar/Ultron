@@ -1,0 +1,9 @@
+runtime: python27
+api_version: 1
+vm: true
+entrypoint: gunicorn -b :$PORT main:app
+threadsafe: true
+
+handlers:
+- url: /.*
+  script: index.app
