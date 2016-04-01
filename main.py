@@ -50,13 +50,10 @@ def index():
         #Accept pushes
         elif request.headers.get('X-GitHub-Event') != "push":
             return json.dumps({'msg': "wrong event type"})
-        logging.debug("Decided it's a push")
 
         payload = json.loads(request.data)
         repo_name = payload['repository']['name']
         repo_owner = payload['repository']['owner']['name']
-
-        logging.debug("Assigned repo info")
 
         #Double check it's our precious template repo
         if repo_name != app.config['REPO'] or repo_owner != app.config['ORG']:
@@ -72,16 +69,16 @@ def index():
             mac = hmac.new(key, msg=request.data, digestmod=sha1)
             if not compare_digest(mac.hexdigest(), signature):
                 abort(403)
-        logging.debug("Got key")
 
         #Get the repos it should trigger builds from the YAML file
         stream = open(os.path.join(_basedir, "build_repos.yaml"))
         repos_to_build = yaml.load(stream)
 
-        logging.debug("Got YAML")
+        logging.info("Got YAML \n" + repos_to_build)
 
         #Specify the branch to build in the payload
         payload = json.dumps({'request': {'branch': app.config['BRANCH']}})
+        logging.info('Payload' + payload)
         #Do the request
         for repo in repos_to_build:
             logging.debug("Looping" + repo)
@@ -90,11 +87,10 @@ def index():
             try:
                 travis_request = requests.post(url, data=payload, headers=headers, allow_redirects=False)
                 if travis_request.status_code != 200 or travis_request.status_code != 202:
-                    logging.error(travis_request.text)
+                    logging.error(travis_request)
                     break
             except requests.exceptions as e:
                 logging.error(e)
-    logging.debug('About to return ok')
     return 'OK'
 
 def compare_digest(a, b):
