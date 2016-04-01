@@ -88,7 +88,7 @@ def index():
             url = 'https://api.travis-ci.org/repo/'+app.config['ORG']+'%2F'+repo+'/requests'
             headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'Travis-API-Version': 3, 'Authorization': 'token ' + app.config['TRAVIS_SECRET']}
             travis_request = requests.post(url, data=payload, headers=headers)
-
+    logging.debug('About to return ok')
     return 'OK'
 
 def compare_digest(a, b):
