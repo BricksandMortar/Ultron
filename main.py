@@ -5,6 +5,7 @@ import re
 import sys
 import json
 import subprocess
+import logging
 
 import requests
 import ipaddress
@@ -14,9 +15,9 @@ from hashlib import sha1
 from flask import Flask, request, abort
 
 """`main` is the top level module for the Flask application."""
-
 app = Flask(__name__)
 app.config.from_object('config')
+app.debug = True
 _basedir = os.path.abspath(os.path.dirname(__file__))
 
 @app.route("/", methods=['GET', 'POST'])
@@ -24,23 +25,23 @@ def index():
     if request.method == 'GET':
         return 'OK'
     elif request.method == 'POST':
-        # Store the IP address of the requester
-        request_ip = ipaddress.ip_address(u'{0}'.format(request.remote_addr))
-
-        # If GHE_ADDRESS is specified, use it as the hook_blocks.
-        if os.environ.get('GHE_ADDRESS', None):
-            hook_blocks = [os.environ.get('GHE_ADDRESS')]
-        # Otherwise get the hook address blocks from the API.
-        else:
-            hook_blocks = requests.get('https://api.github.com/meta').json()[
-                'hooks']
-
-        # Check if the POST request is from github.com or GHE
-        for block in hook_blocks:
-            if ipaddress.ip_address(request_ip) in ipaddress.ip_network(block):
-                break  # the remote_addr is within the network range of github.
-        else:
-            abort(403)
+        # # Store the IP address of the requester
+        # request_ip = ipaddress.ip_address(u'{0}'.format(request.remote_addr))
+        #
+        # # If GHE_ADDRESS is specified, use it as the hook_blocks.
+        # if os.environ.get('GHE_ADDRESS', None):
+        #     hook_blocks = [os.environ.get('GHE_ADDRESS')]
+        # # Otherwise get the hook address blocks from the API.
+        # else:
+        #     hook_blocks = requests.get('https://api.github.com/meta').json()[
+        #         'hooks']
+        #
+        # # Check if the POST request is from github.com or GHE
+        # for block in hook_blocks:
+        #     if ipaddress.ip_address(request_ip) in ipaddress.ip_network(block):
+        #         break  # the remote_addr is within the network range of github.
+        # else:
+        #     abort(403)
 
         #Accept pings
         if request.headers.get('X-GitHub-Event') == "ping":
@@ -49,10 +50,13 @@ def index():
         #Accept pushes
         elif request.headers.get('X-GitHub-Event') != "push":
             return json.dumps({'msg': "wrong event type"})
+        logging.debug("Decided it's a push")
 
         payload = json.loads(request.data)
         repo_name = payload['repository']['name']
         repo_owner = payload['repository']['owner']['name']
+
+        logging.debug("Assigned repo info")
 
         #Double check it's our precious template repo
         if repo_name != app.config['REPO'] or repo_owner != app.config['ORG']:
@@ -68,15 +72,19 @@ def index():
             mac = hmac.new(key, msg=request.data, digestmod=sha1)
             if not compare_digest(mac.hexdigest(), signature):
                 abort(403)
+        logging.debug("Got key")
 
         #Get the repos it should trigger builds from the YAML file
         stream = open(os.path.join(_basedir, "build_repos.yaml"))
         repos_to_build = yaml.load(stream)
 
+        logging.debug("Got YAML")
+
         #Specify the branch to build in the payload
         payload = json.dumps({'request': {'branch': app.config['BRANCH']}})
         #Do the request
         for repo in repos_to_build:
+            logging.debug("Looping" + repo)
             url = 'https://api.travis-ci.org/repo/'+app.config['ORG']+'%2F'+repo+'/requests'
             headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'Travis-API-Version': 3, 'Authorization': 'token ' + app.config['TRAVIS_SECRET']}
             travis_request = requests.post(url, data=payload, headers=headers)

@@ -5,3 +5,7 @@ threadsafe: true
 handlers:
 - url: .*  # This regex directs all routes to main.app
   script: main.app
+
+libraries:
+- name: yaml
+  version: "3.10"

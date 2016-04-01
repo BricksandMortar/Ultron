@@ -4,7 +4,7 @@
     <facet type="google-appengine-python" name="Google App Engine (Python)">
       <configuration>
         <option name="rootFolder" value="D:\GitHub\Bricks and Mortar\travis-github-doc-builder" />
-        <option name="sdkFolder" value="$USER_HOME$/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin" />
+        <option name="sdkFolder" value="C:\Users\Arran\AppData\Local\Google\Cloud SDK\google-cloud-sdk\platform\google_appengine" />
         <option name="templatesFolder" value="" />
         <option name="oauth2" value="false" />
         <option name="deployConfigured" value="false" />
