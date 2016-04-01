@@ -6,7 +6,9 @@ import sys
 import json
 import subprocess
 import logging
+import urllib
 
+from google.appengine.api import urlfetch
 import requests
 import ipaddress
 import hmac
@@ -74,7 +76,7 @@ def index():
         stream = open(os.path.join(_basedir, "build_repos.yaml"))
         repos_to_build = yaml.load(stream)
 
-        logging.info("Got YAML \n" + repos_to_build)
+        logging.info("Got YAML")
 
         #Specify the branch to build in the payload
         payload = json.dumps({'request': {'branch': app.config['BRANCH']}})
@@ -83,14 +85,17 @@ def index():
         for repo in repos_to_build:
             logging.debug("Looping" + repo)
             url = 'https://api.travis-ci.org/repo/'+app.config['ORG']+'%2F'+repo+'/requests'
+            logging.debug("Url is " + url)
             headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'Travis-API-Version': 3, 'Authorization': 'token ' + app.config['TRAVIS_SECRET']}
-            try:
-                travis_request = requests.post(url, data=payload, headers=headers, allow_redirects=False)
-                if travis_request.status_code != 200 or travis_request.status_code != 202:
-                    logging.error(travis_request)
-                    break
-            except requests.exceptions as e:
-                logging.error(e)
+            result = urlfetch.fetch(url=url, payload=payload, method=urlfetch.POST, headers=headers, follow_redirects=False)
+            # try:
+            #     travis_request = requests.post(url, data=payload, headers=headers, allow_redirects=False)
+            #     if travis_request.status_code != 200 or travis_request.status_code != 202:
+            #         logging.error(travis_request)
+            #         break
+            # except requests.exceptions as e:
+            #     logging.error(e)
+            logging.debug(result)
     return 'OK'
 
 def compare_digest(a, b):
