@@ -95,10 +95,10 @@ def index():
             #         break
             # except requests.exceptions as e:
             #     logging.error(e)
-            if result.status_code != 202 or result.status_code != 200:
-                logging.error(str(result.status_code)+ result.content)
+            if result.status_code == 202 or result.status_code == 200:
+                logging.info(str(result.status_code) + '\n'  + result.content)
             else:
-                logging.info(str(result.status_code) + result.content)
+                logging.error(str(result.status_code) + '\n' + result.content)
     return 'OK'
 
 def compare_digest(a, b):
