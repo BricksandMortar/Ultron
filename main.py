@@ -98,7 +98,7 @@ def index():
             if result.status_code != 202 or result.status_code != 200:
                 logging.error(result.status_code + result.content)
             else:
-                logging.info(result.status_code + result.content)
+                logging.info(str(result.status_code) + result.content)
     return 'OK'
 
 def compare_digest(a, b):
