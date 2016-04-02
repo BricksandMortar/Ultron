@@ -96,7 +96,7 @@ def index():
             # except requests.exceptions as e:
             #     logging.error(e)
             if result.status_code != 202 or result.status_code != 200:
-                logging.error(result.status_code + result.content)
+                logging.error(str(result.status_code)+ result.content)
             else:
                 logging.info(str(result.status_code) + result.content)
     return 'OK'
