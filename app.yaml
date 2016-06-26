@@ -1,4 +1,4 @@
-application: bricks-build-docs
+#application: bricks-build-docs
 version: v11
 runtime: python27
 api_version: 1
