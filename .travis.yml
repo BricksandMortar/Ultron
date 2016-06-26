@@ -15,7 +15,7 @@ script:
 
 deploy:
   provider: gae
-  keyfile: bricks-build-docs-75cfd3f6946f.json.enc
+  keyfile: bricks-build-docs-75cfd3f6946f.json
   project: bricks-build-docs
   skip_cleanup: true
   default: true
