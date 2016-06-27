@@ -60,7 +60,7 @@ def index():
 
         payload = json.loads(request.data)
         logging.debug('Payload' + json.dumps(payload))
-        repo_owner = payload['repository']['owner']['name']
+        
         repo_name = payload['repository']['name']
 
         if event_type == "create":
@@ -84,6 +84,7 @@ def index():
 
         # Double check it's our precious template repo
         elif event_type == "push":
+            repo_owner = payload['repository']['owner']['name']
             logging.debug('Type is push')
             if repo_name != app.config['REPO'] or repo_owner != app.config['ORG']:
                 return 'OK'
