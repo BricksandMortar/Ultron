@@ -61,15 +61,16 @@ def index():
         repo_name = payload['repository']['name']
 
         if event_type == "create":
-            if ['ref_type'] != "branch" or payload['ref'] != 'gh-pages':
+            if ['ref_type'] != "branch" or payload['ref'] != app.config['REPO']:
                 return 'OK'
             elif verify_key():
+                logging.debug('Verifying key')
                 add_repo(repo_name)
             else:
                 abort(403)
 
         elif event_type == "delete":
-            if ['ref_type'] != "branch" or payload['ref'] != 'gh-pages':
+            if ['ref_type'] != "branch" or payload['ref'] != app.config['REPO']:
                 return 'OK'
             elif verify_key():
                 remove_repo(repo_name)
@@ -113,10 +114,13 @@ def verify_key():
         if type(key) == unicode:
             key = key.encode()
         mac = hmac.new(key, msg=request.data, digestmod=sha1)
-        return compare_digest(mac.hexdigest(), signature)
+        key_verified = compare_digest(mac.hexdigest(), signature)
+        logging.debug('Key verified' + str(key_verified))
+        return key_verified
 
 
 def add_repo(repo):
+    logging.debug('Adding repo')
     query = Repository.query(Repository.Name == 'repo').get()
     if query is None:
         new_repo = Repository(
@@ -124,13 +128,14 @@ def add_repo(repo):
         new_repo.put()
 
 def remove_repo(repo):
+    logging.debug('Removing repo')
     stored_repo = Repository.query(Repository.Name == 'repo').get()
     if stored_repo is not None:
         stored_repo.key.delete()
 
 
 def trigger_builds():
-    # Get the repos it should trigger builds from the YAML file
+    logging.debug('Triggering rebuilds')
     repos_to_build = Repository.all()
 
     # Specify the branch to build in the payload
