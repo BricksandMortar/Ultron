@@ -4,6 +4,8 @@ before_install:
 - openssl aes-256-cbc -K $encrypted_c2aae14d9ebd_key -iv $encrypted_c2aae14d9ebd_iv
   -in bricks-build-docs-75cfd3f6946f.json.enc -out bricks-build-docs-75cfd3f6946f.json
   -d
+- openssl aes-256-cbc -K $encrypted_c2aae14d9ebd_key -iv $encrypted_c2aae14d9ebd_iv
+  -in config.py.enc -out config.py -d
 - mkdir -p lib
 install:
 - pip install -r requirements.txt -t lib/
@@ -15,6 +17,4 @@ deploy:
   project: bricks-build-docs
   skip_cleanup: true
   default: true
-dd:
-- openssl aes-256-cbc -K $encrypted_c2aae14d9ebd_key -iv $encrypted_c2aae14d9ebd_iv
-  -in config.py.enc -out config.py -d
+
