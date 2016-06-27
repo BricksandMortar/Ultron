@@ -16,7 +16,7 @@ from google.appengine.ext import ndb
 
 """`main` is the top level module for the Flask application."""
 app = Flask(__name__)
-app.config.from_pyfile('~/src/default/config.py')
+app.config.from_pyfile('config.py')
 app.debug = True
 _basedir = os.path.abspath(os.path.dirname(__file__))
 
