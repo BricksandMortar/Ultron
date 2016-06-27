@@ -10,7 +10,6 @@ import urllib
 
 from google.appengine.api import urlfetch
 import hmac
-import yaml
 from hashlib import sha1
 from flask import Flask, request, abort
 from google.appengine.ext import ndb
@@ -132,10 +131,7 @@ def remove_repo(repo):
 
 def trigger_builds():
     # Get the repos it should trigger builds from the YAML file
-    stream = open(os.path.join(_basedir, "build_repos.yaml"))
-    repos_to_build = yaml.load(stream)
-
-    logging.info("Got YAML")
+    repos_to_build = Repository.all()
 
     # Specify the branch to build in the payload
     payload = json.dumps({'request': {'branch': app.config['BRANCH']}})
