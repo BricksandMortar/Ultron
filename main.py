@@ -126,15 +126,15 @@ def verify_key():
 
 def add_repo(repo):
     logging.debug('Adding repo')
-    query = Repository.query(Repository.Name == 'repo').get()
+    query = Repository.query(Repository.Name == repo).get()
     if query is None:
         new_repo = Repository(
-            name=repo)
+            Name=repo)
         new_repo.put()
 
 def remove_repo(repo):
     logging.debug('Removing repo')
-    stored_repo = Repository.query(Repository.Name == 'repo').get()
+    stored_repo = Repository.query(Repository.Name == repo).get()
     if stored_repo is not None:
         stored_repo.key.delete()
 
@@ -165,6 +165,7 @@ def trigger_builds():
             logging.info(str(result.status_code) + '\n' + result.content)
         else:
             logging.error(str(result.status_code) + '\n' + result.content)
+
 
 class Repository (ndb.Model):
     Name = ndb.StringProperty()
