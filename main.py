@@ -9,12 +9,11 @@ import logging
 import urllib
 
 from google.appengine.api import urlfetch
-import requests
-import ipaddress
 import hmac
 import yaml
 from hashlib import sha1
 from flask import Flask, request, abort
+from google.appengine.ext import ndb
 
 """`main` is the top level module for the Flask application."""
 app = Flask(__name__)
@@ -22,11 +21,13 @@ app.config.from_object('config')
 app.debug = True
 _basedir = os.path.abspath(os.path.dirname(__file__))
 
+
 @app.route("/", methods=['GET', 'POST'])
 def index():
     if request.method == 'GET':
         return 'OK'
     elif request.method == 'POST':
+
         # # Store the IP address of the requester
         # request_ip = ipaddress.ip_address(u'{0}'.format(request.remote_addr))
         #
@@ -45,81 +46,120 @@ def index():
         # else:
         #     abort(403)
 
-        #Accept pings
-        if request.headers.get('X-GitHub-Event') == "ping":
+
+        event_type = request.headers.get('X-GitHub-Event')
+
+        # Accept pings
+        if event_type == "ping":
             return json.dumps({'msg': 'Hi!'})
 
-        #Accept pushes
-        elif request.headers.get('X-GitHub-Event') != "push":
+        # Accept pushes
+        elif event_type != "push" or event_type != "create" or event_type != "delete":
             return json.dumps({'msg': "wrong event type"})
 
         payload = json.loads(request.data)
-        repo_name = payload['repository']['name']
         repo_owner = payload['repository']['owner']['name']
+        repo_name = payload['repository']['name']
 
-        #Double check it's our precious template repo
-        if repo_name != app.config['REPO'] or repo_owner != app.config['ORG']:
-            return 'OK'
-
-        #Verify the signature matches our webhook signature
-        key = app.config['GITHUB_SECRET']
-        if key:
-            signature = request.headers.get('X-Hub-Signature').split(
-                '=')[1]
-            if type(key) == unicode:
-                key = key.encode()
-            mac = hmac.new(key, msg=request.data, digestmod=sha1)
-            if not compare_digest(mac.hexdigest(), signature):
+        if event_type == "create":
+            if ['ref_type'] != "branch" or payload['ref'] != 'gh-pages':
+                return 'OK'
+            elif verify_key():
+                add_repo(repo_name)
+            else:
                 abort(403)
 
-        #Get the repos it should trigger builds from the YAML file
-        stream = open(os.path.join(_basedir, "build_repos.yaml"))
-        repos_to_build = yaml.load(stream)
-
-        logging.info("Got YAML")
-
-        #Specify the branch to build in the payload
-        payload = json.dumps({'request': {'branch': app.config['BRANCH']}})
-        logging.info('Payload' + payload)
-        #Do the request
-        for repo in repos_to_build:
-            logging.debug("Looping" + repo)
-            url = 'https://api.travis-ci.org/repo/'+app.config['ORG']+'%2F'+repo+'/requests'
-            logging.debug("Url is " + url)
-            headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'Travis-API-Version': 3, 'Authorization': 'token ' + app.config['TRAVIS_SECRET']}
-            result = urlfetch.fetch(url=url, payload=payload, method=urlfetch.POST, headers=headers, follow_redirects=False)
-            # try:
-            #     travis_request = requests.post(url, data=payload, headers=headers, allow_redirects=False)
-            #     if travis_request.status_code != 200 or travis_request.status_code != 202:
-            #         logging.error(travis_request)
-            #         break
-            # except requests.exceptions as e:
-            #     logging.error(e)
-            if result.status_code == 202 or result.status_code == 200:
-                logging.info(str(result.status_code) + '\n'  + result.content)
+        elif event_type == "delete":
+            if ['ref_type'] != "branch" or payload['ref'] != 'gh-pages':
+                return 'OK'
+            elif verify_key():
+                remove_repo(repo_name)
             else:
-                logging.error(str(result.status_code) + '\n' + result.content)
+                abort(403)
+
+        # Double check it's our precious template repo
+        elif event_type == "push":
+            if repo_name != app.config['REPO'] or repo_owner != app.config['ORG']:
+                return 'OK'
+            elif verify_key():
+                trigger_builds()
+            else:
+                abort(403)
     return 'OK'
 
+
 def compare_digest(a, b):
-        """
-        ** From Django source **
-        Run a constant time comparison against two strings
-        Returns true if a and b are equal.
-        a and b must both be the same length, or False is
-        returned immediately
-        """
-        if len(a) != len(b):
-            return False
+    """
+    ** From Django source **
+    Run a constant time comparison against two strings
+    Returns true if a and b are equal.
+    a and b must both be the same length, or False is
+    returned immediately
+    """
+    if len(a) != len(b):
+        return False
 
-        result = 0
-        for ch_a, ch_b in zip(a, b):
-            result |= ord(ch_a) ^ ord(ch_b)
-        return result == 0
+    result = 0
+    for ch_a, ch_b in zip(a, b):
+        result |= ord(ch_a) ^ ord(ch_b)
+    return result == 0
 
-# if __name__ == "__main__":
-#     try:
-#         port_number = int(sys.argv[1])
-#     except:
-#         port_number = 80
-#     app.run(host='0.0.0.0', port=port_number)
+
+def verify_key():
+    # Verify the signature matches our webhook signature
+    key = app.config['GITHUB_SECRET']
+    if key:
+        signature = request.headers.get('X-Hub-Signature').split(
+            '=')[1]
+        if type(key) == unicode:
+            key = key.encode()
+        mac = hmac.new(key, msg=request.data, digestmod=sha1)
+        return compare_digest(mac.hexdigest(), signature)
+
+
+def add_repo(repo):
+    query = Repository.query(Repository.Name == 'repo').get()
+    if query is None:
+        new_repo = Repository(
+            name=repo)
+        new_repo.put()
+
+def remove_repo(repo):
+    stored_repo = Repository.query(Repository.Name == 'repo').get()
+    if stored_repo is not None:
+        stored_repo.key.delete()
+
+
+def trigger_builds():
+    # Get the repos it should trigger builds from the YAML file
+    stream = open(os.path.join(_basedir, "build_repos.yaml"))
+    repos_to_build = yaml.load(stream)
+
+    logging.info("Got YAML")
+
+    # Specify the branch to build in the payload
+    payload = json.dumps({'request': {'branch': app.config['BRANCH']}})
+    logging.info('Payload' + payload)
+    # Do the request
+    for repo in repos_to_build:
+        logging.debug("Looping" + repo)
+        url = 'https://api.travis-ci.org/repo/' + app.config['ORG'] + '%2F' + repo + '/requests'
+        logging.debug("Url is " + url)
+        headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'Travis-API-Version': 3,
+                   'Authorization': 'token ' + app.config['TRAVIS_SECRET']}
+        result = urlfetch.fetch(url=url, payload=payload, method=urlfetch.POST, headers=headers, follow_redirects=False)
+        # try:
+        #     travis_request = requests.post(url, data=payload, headers=headers, allow_redirects=False)
+        #     if travis_request.status_code != 200 or travis_request.status_code != 202:
+        #         logging.error(travis_request)
+        #         break
+        # except requests.exceptions as e:
+        #     logging.error(e)
+        if result.status_code == 202 or result.status_code == 200:
+            logging.info(str(result.status_code) + '\n' + result.content)
+        else:
+            logging.error(str(result.status_code) + '\n' + result.content)
+
+class Repository (ndb.Model):
+    Name = ndb.StringProperty()
+    URL = ndb.StringProperty()
