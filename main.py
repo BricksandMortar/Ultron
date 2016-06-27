@@ -55,7 +55,7 @@ def index():
             return json.dumps({'msg': 'Hi!'})
 
         # Accept pushes
-        elif event_type != "push" or event_type != "create" or event_type != "delete":
+        elif event_type != "push" and event_type != "create" and event_type != "delete":
             return json.dumps({'msg': "wrong event type"})
 
         payload = json.loads(request.data)
