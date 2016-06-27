@@ -48,24 +48,22 @@ def index():
 
 
         event_type = request.headers.get('X-GitHub-Event')
-        logging.debug('Event Type: ' + event_type)
 
         # Accept pings
         if event_type == "ping":
             return json.dumps({'msg': 'Hi!'})
 
         # Accept pushes
-        elif event_type != "push" and event_type != "create" and event_type != "delete":
+        elif event_type != "push" and event_type != "create" and event_type != "delete" and event_type != "repository":
             return json.dumps({'msg': "wrong event type"})
 
         payload = json.loads(request.data)
-        logging.debug('Payload' + json.dumps(payload))
-        
         repo_name = payload['repository']['name']
 
         if event_type == "create":
             logging.debug('Type is create')
-            if payload['ref_type'] != "branch" or payload['ref'] != app.config['REPO']:
+            logging.debug('ref type:' + payload['ref_type'] + 'AND ref:' + payload['ref'] + 'AND repo:' + app.config['REPO'])
+            if payload['ref_type'] != "branch" or payload['ref'] != app.config['BRANCH']:
                 return 'OK'
             elif verify_key():
                 logging.debug('Verifying key')
@@ -73,9 +71,9 @@ def index():
             else:
                 abort(403)
 
-        elif event_type == "delete":
-            logging.debug('Type is delete')
-            if payload['ref_type'] != "branch" or payload['ref'] != app.config['REPO']:
+        elif event_type == "delete" or event_type == "repository":
+            logging.debug('Type is' + event_type)
+            if (event_type == "delete" and (payload['ref_type'] != "branch"  or payload['ref'] != app.config['REPO'])) or (event_type == "repository" and payload['action'] != "deleted"):
                 return 'OK'
             elif verify_key():
                 remove_repo(repo_name)
