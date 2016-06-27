@@ -23,8 +23,9 @@ _basedir = os.path.abspath(os.path.dirname(__file__))
 
 @app.route("/", methods=['GET', 'POST'])
 def index():
+    quote = "Wanda Maximoff: Is that why you've come, to end the Avengers? \n Ultron: I've come to save the world! But, also... yeah. "
     if request.method == 'GET':
-        return 'OK'
+        return quote
     elif request.method == 'POST':
 
 
@@ -64,7 +65,7 @@ def index():
             logging.debug('Type is create')
             logging.debug('ref type:' + payload['ref_type'] + 'AND ref:' + payload['ref'] + 'AND repo:' + app.config['REPO'])
             if payload['ref_type'] != "branch" or payload['ref'] != app.config['BRANCH']:
-                return 'OK'
+                return quote
             elif verify_key():
                 logging.debug('Verifying key')
                 add_repo(repo_name)
@@ -74,7 +75,7 @@ def index():
         elif event_type == "delete" or event_type == "repository":
             logging.debug('Type is' + event_type)
             if (event_type == "delete" and (payload['ref_type'] != "branch"  or payload['ref'] != app.config['REPO'])) or (event_type == "repository" and payload['action'] != "deleted"):
-                return 'OK'
+                return quote
             elif verify_key():
                 remove_repo(repo_name)
             else:
@@ -85,12 +86,12 @@ def index():
             repo_owner = payload['repository']['owner']['name']
             logging.debug('Type is push')
             if repo_name != app.config['REPO'] or repo_owner != app.config['ORG']:
-                return 'OK'
+                return quote
             elif verify_key():
                 trigger_builds()
             else:
                 abort(403)
-    return 'OK'
+    return quote
 
 
 def compare_digest(a, b):
