@@ -57,11 +57,13 @@ def index():
             return json.dumps({'msg': "wrong event type"})
 
         payload = json.loads(request.data)
+        logging.debug('Payload' + json.dumps(payload))
         repo_owner = payload['repository']['owner']['name']
         repo_name = payload['repository']['name']
 
         if event_type == "create":
-            if ['ref_type'] != "branch" or payload['ref'] != app.config['REPO']:
+            logging.debug('Type is create')
+            if payload['ref_type'] != "branch" or payload['ref'] != app.config['REPO']:
                 return 'OK'
             elif verify_key():
                 logging.debug('Verifying key')
@@ -70,7 +72,8 @@ def index():
                 abort(403)
 
         elif event_type == "delete":
-            if ['ref_type'] != "branch" or payload['ref'] != app.config['REPO']:
+            logging.debug('Type is delete')
+            if payload['ref_type'] != "branch" or payload['ref'] != app.config['REPO']:
                 return 'OK'
             elif verify_key():
                 remove_repo(repo_name)
@@ -79,6 +82,7 @@ def index():
 
         # Double check it's our precious template repo
         elif event_type == "push":
+            logging.debug('Type is push')
             if repo_name != app.config['REPO'] or repo_owner != app.config['ORG']:
                 return 'OK'
             elif verify_key():
