@@ -27,6 +27,7 @@ def index():
         return 'OK'
     elif request.method == 'POST':
 
+
         # # Store the IP address of the requester
         # request_ip = ipaddress.ip_address(u'{0}'.format(request.remote_addr))
         #
@@ -47,6 +48,7 @@ def index():
 
 
         event_type = request.headers.get('X-GitHub-Event')
+        logging.debug('Event Type: ' + event_type)
 
         # Accept pings
         if event_type == "ping":
