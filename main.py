@@ -19,11 +19,11 @@ app = Flask(__name__)
 app.config.from_pyfile('config.py')
 app.debug = True
 _basedir = os.path.abspath(os.path.dirname(__file__))
+quote = "<strong>Wanda Maximoff</strong>: Is that why you've come, to end the Avengers? \n <strong>Ultron</strong>: I've come to save the world! But, also... yeah. "
 
 
 @app.route("/", methods=['GET', 'POST'])
 def index():
-    quote = "Wanda Maximoff: Is that why you've come, to end the Avengers? \n Ultron: I've come to save the world! But, also... yeah. "
     if request.method == 'GET':
         return quote
     elif request.method == 'POST':
@@ -47,7 +47,6 @@ def index():
         # else:
         #     abort(403)
 
-
         event_type = request.headers.get('X-GitHub-Event')
 
         # Accept pings
@@ -55,6 +54,7 @@ def index():
             return json.dumps({'msg': 'Hi!'})
 
         # Accept pushes
+        #TODO Change this to a method that compares against a datastructure of accepted events
         elif event_type != "push" and event_type != "create" and event_type != "delete" and event_type != "repository":
             return json.dumps({'msg': "wrong event type"})
 
@@ -62,35 +62,19 @@ def index():
         repo_name = payload['repository']['name']
 
         if event_type == "create":
-            logging.debug('Type is create')
-            logging.debug('ref type:' + payload['ref_type'] + 'AND ref:' + payload['ref'] + 'AND repo:' + app.config['REPO'])
-            if payload['ref_type'] != "branch" or payload['ref'] != app.config['BRANCH']:
-                return quote
-            elif verify_key():
-                logging.debug('Verifying key')
-                add_repo(repo_name)
-            else:
-                abort(403)
+            create_event(payload, repo_name)
 
         elif event_type == "delete" or event_type == "repository":
             logging.debug('Type is' + event_type)
-            if (event_type == "delete" and (payload['ref_type'] != "branch"  or payload['ref'] != app.config['REPO'])) or (event_type == "repository" and payload['action'] != "deleted"):
+            if (event_type == "delete" and (payload['ref_type'] != "branch" or not compare_ref(payload['ref']))) or (event_type == "repository" and payload['action'] != "deleted"):
                 return quote
             elif verify_key():
                 remove_repo(repo_name)
             else:
                 abort(403)
 
-        # Double check it's our precious template repo
         elif event_type == "push":
-            repo_owner = payload['repository']['owner']['name']
-            logging.debug('Type is push')
-            if repo_name != app.config['REPO'] or repo_owner != app.config['ORG']:
-                return quote
-            elif verify_key():
-                trigger_builds()
-            else:
-                abort(403)
+            push_event(payload, repo_name)
     return quote
 
 
@@ -124,6 +108,36 @@ def verify_key():
         logging.debug('Key verified' + str(key_verified))
         return key_verified
 
+
+def compare_ref(ref):
+    ref = ref.rpartition("/")[2]
+    return ref == app.config['BRANCH']
+
+
+def create_event(payload, repo_name):
+    logging.debug('Type is create')
+    logging.debug('ref type:' + payload['ref_type'] + 'AND ref:' + payload['ref'] + 'AND repo:' + app.config['REPO'])
+    if payload['ref_type'] != "branch" or not compare_ref(payload['ref']):
+        return quote
+    elif verify_key():
+        logging.debug('Verifying key')
+        add_repo(repo_name)
+    else:
+        abort(403)
+
+
+def push_event(payload, repo_name):
+    repo_owner = payload['repository']['owner']['name']
+    logging.debug('Type is push')
+    if repo_name != app.config['REPO'] or repo_owner != app.config['ORG']:
+        return quote
+    elif verify_key():
+        if payload['deleted'] and compare_ref(payload['ref']):
+            remove_repo(repo_name)
+        else:
+            trigger_builds()
+    else:
+        abort(403)
 
 def add_repo(repo):
     logging.debug('Adding repo')
