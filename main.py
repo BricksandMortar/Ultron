@@ -136,7 +136,7 @@ def push_event(payload, repo_name):
         if payload['deleted'] and compare_ref(payload['ref']):
             remove_repo(repo_name)
         # Check to see if it's our template repo
-        if repo_name != app.config['REPO']:
+        elif repo_name == app.config['REPO']:
             trigger_builds()
         else:
             return quote
