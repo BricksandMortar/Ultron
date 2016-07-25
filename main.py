@@ -19,7 +19,7 @@ app = Flask(__name__)
 app.config.from_pyfile('config.py')
 app.debug = True
 _basedir = os.path.abspath(os.path.dirname(__file__))
-quote = "<strong>Wanda Maximoff</strong>: Is that why you've come, to end the Avengers? \n <strong>Ultron</strong>: I've come to save the world! But, also... yeah. "
+quote = "<strong>Wanda Maximoff</strong>: Is that why you've come, to end the Avengers? <br \> <strong>Ultron</strong>: I've come to save the world! But, also... yeah. "
 
 
 @app.route("/", methods=['GET', 'POST'])
@@ -111,6 +111,7 @@ def verify_key():
 
 def compare_ref(ref):
     ref = ref.rpartition("/")[2]
+    #logging.debug('Comparing ref, reduced ref is :' + ref + ' app.config branch is: ' + ref)
     return ref == app.config['BRANCH']
 
 
@@ -129,15 +130,19 @@ def create_event(payload, repo_name):
 def push_event(payload, repo_name):
     repo_owner = payload['repository']['owner']['name']
     logging.debug('Type is push')
-    if repo_name != app.config['REPO'] or repo_owner != app.config['ORG']:
+    if repo_owner != app.config['ORG']:
         return quote
     elif verify_key():
         if payload['deleted'] and compare_ref(payload['ref']):
             remove_repo(repo_name)
-        else:
+        # Check to see if it's our template repo
+        if repo_name != app.config['REPO']:
             trigger_builds()
+        else:
+            return quote
     else:
         abort(403)
+
 
 def add_repo(repo):
     logging.debug('Adding repo')
@@ -146,6 +151,7 @@ def add_repo(repo):
         new_repo = Repository(
             Name=repo)
         new_repo.put()
+
 
 def remove_repo(repo):
     logging.debug('Removing repo')
