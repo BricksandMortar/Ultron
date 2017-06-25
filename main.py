@@ -203,9 +203,8 @@ def add_to_travis(repo_name):
         "builds_only_with_travis_yml": "true"}
     }
     try:
-
-        json = json.dumps(travis_settings_data)
-        result = urlfetch.fetch(url=travis_settings_url, method=urlfetch.PATCH, payload=json,
+        json_body = json.dumps(travis_settings_data)
+        result = urlfetch.fetch(url=travis_settings_url, method=urlfetch.PATCH, payload=json_body,
                                 headers=travis_headers)
         if result.status_code != 200:
             logging.error('Received response:' + str(result.status_code) + '\n' + result.content)
