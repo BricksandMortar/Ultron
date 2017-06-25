@@ -27,26 +27,6 @@ def index():
     if request.method == 'GET':
         return quote
     elif request.method == 'POST':
-
-
-        # # Store the IP address of the requester
-        # request_ip = ipaddress.ip_address(u'{0}'.format(request.remote_addr))
-        #
-        # # If GHE_ADDRESS is specified, use it as the hook_blocks.
-        # if os.environ.get('GHE_ADDRESS', None):
-        #     hook_blocks = [os.environ.get('GHE_ADDRESS')]
-        # # Otherwise get the hook address blocks from the API.
-        # else:
-        #     hook_blocks = requests.get('https://api.github.com/meta').json()[
-        #         'hooks']
-        #
-        # # Check if the POST request is from github.com or GHE
-        # for block in hook_blocks:
-        #     if ipaddress.ip_address(request_ip) in ipaddress.ip_network(block):
-        #         break  # the remote_addr is within the network range of github.
-        # else:
-        #     abort(403)
-
         event_type = request.headers.get('X-GitHub-Event')
 
         # Accept pings
@@ -54,7 +34,7 @@ def index():
             return json.dumps({'msg': 'Hi!'})
 
         # Accept pushes
-        #TODO Change this to a method that compares against a datastructure of accepted events
+        # TODO Change this to a method that compares against a datastructure of accepted events
         elif event_type != "push" and event_type != "create" and event_type != "delete" and event_type != "repository":
             return json.dumps({'msg': "wrong event type"})
 
@@ -66,7 +46,8 @@ def index():
 
         elif event_type == "delete" or event_type == "repository":
             logging.debug('Type is' + event_type)
-            if (event_type == "delete" and (payload['ref_type'] != "branch" or not compare_ref(payload['ref']))) or (event_type == "repository" and payload['action'] != "deleted"):
+            if (event_type == "delete" and (payload['ref_type'] != "branch" or not compare_ref(payload['ref']))) or (
+                            event_type == "repository" and payload['action'] != "deleted"):
                 return quote
             elif verify_key():
                 remove_repo(repo_name)
@@ -111,7 +92,7 @@ def verify_key():
 
 def compare_ref(ref):
     ref = ref.rpartition("/")[2]
-    #logging.debug('Comparing ref, reduced ref is :' + ref + ' app.config branch is: ' + ref)
+    # logging.debug('Comparing ref, reduced ref is :' + ref + ' app.config branch is: ' + ref)
     return ref == app.config['BRANCH']
 
 
@@ -144,18 +125,19 @@ def push_event(payload, repo_name):
         abort(403)
 
 
-def add_repo(repo):
+def add_repo(repo_name):
     logging.debug('Adding repo')
-    query = Repository.query(Repository.Name == repo).get()
+    query = Repository.query(Repository.Name == repo_name).get()
     if query is None:
         new_repo = Repository(
-            Name=repo)
+            Name=repo_name)
         new_repo.put()
+        add_to_travis(repo_name)
 
 
-def remove_repo(repo):
+def remove_repo(repo_name):
     logging.debug('Removing repo')
-    stored_repo = Repository.query(Repository.Name == repo).get()
+    stored_repo = Repository.query(Repository.Name == repo_name).get()
     if stored_repo is not None:
         stored_repo.key.delete()
 
@@ -175,19 +157,64 @@ def trigger_builds():
         headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'Travis-API-Version': 3,
                    'Authorization': 'token ' + app.config['TRAVIS_SECRET']}
         result = urlfetch.fetch(url=url, payload=payload, method=urlfetch.POST, headers=headers, follow_redirects=False)
-        # try:
-        #     travis_request = requests.post(url, data=payload, headers=headers, allow_redirects=False)
-        #     if travis_request.status_code != 200 or travis_request.status_code != 202:
-        #         logging.error(travis_request)
-        #         break
-        # except requests.exceptions as e:
-        #     logging.error(e)
         if result.status_code == 202 or result.status_code == 200:
             logging.info(str(result.status_code) + '\n' + result.content)
         else:
             logging.error(str(result.status_code) + '\n' + result.content)
 
 
-class Repository (ndb.Model):
+def add_to_travis(repo_name):
+    travis_headers = {'Accept': 'application/json', 'Authorization': 'token ' + app.config['TRAVIS_SECRET']}
+    repo_id = 0
+    # Get repo id
+    travis_repo_id_url = 'https://api.travis-ci.org/repos/BricksandMortar/' + repo_name
+    logging.debug('Querying ' + travis_repo_id_url)
+    try:
+        result = urlfetch.fetch(url=travis_repo_id_url, method=urlfetch.GET, headers=travis_headers)
+        if result.status_code == 200:
+            travis_repo_id_response = json.loads(result.content)
+            repo_id = str(travis_repo_id_response['id'])
+            logging.info('Repo Id: ' + str(repo_id))
+        else:
+            logging.error('Received response:' + str(result.status_code) + '\n' + result.content)
+            return
+    except urlfetch.Error:
+        logging.exception('Caught exception fetching' + travis_repo_id_url)
+
+    # Add repo to Travis
+    travis_repo_add_url = 'https://api.travis-ci.org/hooks/' + repo_id
+    travis_add_data = {'hook[active]': 'true'}
+    logging.debug('Adding Repo to Travis')
+    try:
+        form_data = urllib.urlencode(travis_add_data)
+        logging.debug('Form data is:' + form_data)
+        result = urlfetch.fetch(url=travis_repo_add_url, method=urlfetch.PUT, payload=form_data,
+                                headers=travis_headers)
+        if result.status_code != 200:
+            logging.error('Received response:' + str(result.status_code) + '\n' + result.content)
+            return
+    except urlfetch.Error:
+        logging.exception('Caught exception adding' + repo_id)
+
+    # Ensure setting to only branches with .travis.yml present
+    logging.debug('Configuring only to build this branch')
+    travis_settings_url = 'https://api.travis-ci.org/repos/' + repo_id + '/settings'
+    travis_settings_data = {"settings": {
+        "builds_only_with_travis_yml": "true"}
+    }
+    try:
+
+        json = json.dumps(travis_settings_data)
+        result = urlfetch.fetch(url=travis_settings_url, method=urlfetch.PATCH, payload=json,
+                                headers=travis_headers)
+        if result.status_code != 200:
+            logging.error('Received response:' + str(result.status_code) + '\n' + result.content)
+        else:
+            logging.info('Received response:' + str(result.status_code) + '\n' + result.content)
+    except urlfetch.Error:
+        logging.exception('Caught exception adding' + repo_id)
+
+
+class Repository(ndb.Model):
     Name = ndb.StringProperty()
     URL = ndb.StringProperty()
