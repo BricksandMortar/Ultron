@@ -125,10 +125,10 @@ def add_repo(repo_name):
     logging.debug('Adding repo')
     query = Repository.query(Repository.Name == repo_name).get()
     if query is None:
+        add_to_travis(repo_name)
         new_repo = Repository(
             Name=repo_name)
         new_repo.put()
-        add_to_travis(repo_name)
 
 
 def remove_repo(repo_name):
