@@ -92,13 +92,10 @@ def verify_key():
 
 def compare_ref(ref):
     ref = ref.rpartition("/")[2]
-    # logging.debug('Comparing ref, reduced ref is :' + ref + ' app.config branch is: ' + ref)
     return ref == app.config['BRANCH']
 
 
 def create_event(payload, repo_name):
-    logging.debug('Type is create')
-    logging.debug('ref type:' + payload['ref_type'] + 'AND ref:' + payload['ref'] + 'AND repo:' + app.config['REPO'])
     if payload['ref_type'] != "branch" or not compare_ref(payload['ref']):
         return quote
     elif verify_key():
@@ -110,7 +107,6 @@ def create_event(payload, repo_name):
 
 def push_event(payload, repo_name):
     repo_owner = payload['repository']['owner']['name']
-    logging.debug('Type is push')
     if repo_owner != app.config['ORG']:
         return quote
     elif verify_key():
@@ -143,28 +139,30 @@ def remove_repo(repo_name):
 
 
 def trigger_builds():
-    logging.debug('Triggering rebuilds')
+    logging.info('Triggering rebuilds')
     repos_to_build = Repository.all()
 
     # Specify the branch to build in the payload
     payload = json.dumps({'request': {'branch': app.config['BRANCH']}})
-    logging.info('Payload' + payload)
     # Do the request
     for repo in repos_to_build:
-        logging.debug("Looping" + repo)
+        logging.info("Building" + repo)
         url = 'https://api.travis-ci.org/repo/' + app.config['ORG'] + '%2F' + repo + '/requests'
         logging.debug("Url is " + url)
         headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'Travis-API-Version': 3,
                    'Authorization': 'token ' + app.config['TRAVIS_SECRET']}
         result = urlfetch.fetch(url=url, payload=payload, method=urlfetch.POST, headers=headers, follow_redirects=False)
         if result.status_code == 202 or result.status_code == 200:
-            logging.info(str(result.status_code) + '\n' + result.content)
+            logging.debug(str(result.status_code) + '\n' + result.content)
         else:
             logging.error(str(result.status_code) + '\n' + result.content)
 
 
 def add_to_travis(repo_name):
-    travis_headers = {'Accept': 'application/json', 'Authorization': 'token ' + app.config['TRAVIS_SECRET']}
+    travis_headers = {'Accept': 'application/vnd.travis-ci.2+json',
+                      'Authorization': 'token ' + app.config['TRAVIS_SECRET'],
+                      'User-Agent': 'BricksandMortarStudioUltron/1.0.0',
+                      'Content-Type': 'application/json'}
     repo_id = 0
     # Get repo id
     travis_repo_id_url = 'https://api.travis-ci.org/repos/BricksandMortar/' + repo_name
@@ -174,7 +172,7 @@ def add_to_travis(repo_name):
         if result.status_code == 200:
             travis_repo_id_response = json.loads(result.content)
             repo_id = str(travis_repo_id_response['id'])
-            logging.info('Repo Id: ' + str(repo_id))
+            logging.debug('Repo Id: ' + str(repo_id))
         else:
             logging.error('Received response:' + str(result.status_code) + '\n' + result.content)
             return
@@ -186,9 +184,7 @@ def add_to_travis(repo_name):
     travis_add_data = {'hook[active]': 'true'}
     logging.debug('Adding Repo to Travis')
     try:
-        form_data = urllib.urlencode(travis_add_data)
-        logging.debug('Form data is:' + form_data)
-        result = urlfetch.fetch(url=travis_repo_add_url, method=urlfetch.PUT, payload=form_data,
+        result = urlfetch.fetch(url=travis_repo_add_url, method=urlfetch.PUT, payload=json.dumps(travis_add_data),
                                 headers=travis_headers)
         if result.status_code != 200:
             logging.error('Received response:' + str(result.status_code) + '\n' + result.content)
@@ -209,7 +205,7 @@ def add_to_travis(repo_name):
         if result.status_code != 200:
             logging.error('Received response:' + str(result.status_code) + '\n' + result.content)
         else:
-            logging.info('Received response:' + str(result.status_code) + '\n' + result.content)
+            logging.debug('Received response:' + str(result.status_code) + '\n' + result.content)
     except urlfetch.Error:
         logging.exception('Caught exception adding' + repo_id)
 
