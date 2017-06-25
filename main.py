@@ -181,7 +181,7 @@ def add_to_travis(repo_name):
 
     # Add repo to Travis
     travis_repo_add_url = 'https://api.travis-ci.org/hooks/' + repo_id
-    travis_add_data = {'hook[active]': 'true'}
+    travis_add_data = {'hook':{'active': 'true'}}
     logging.debug('Adding Repo to Travis')
     try:
         result = urlfetch.fetch(url=travis_repo_add_url, method=urlfetch.PUT, payload=json.dumps(travis_add_data),
