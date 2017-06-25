@@ -171,7 +171,7 @@ def add_to_travis(repo_name):
         result = urlfetch.fetch(url=travis_repo_id_url, method=urlfetch.GET, headers=travis_headers)
         if result.status_code == 200:
             travis_repo_id_response = json.loads(result.content)
-            repo_id = str(travis_repo_id_response['id'])
+            repo_id = str(travis_repo_id_response['repo']['id'])
             logging.debug('Repo Id: ' + str(repo_id))
         else:
             logging.error('Received response:' + str(result.status_code) + '\n' + result.content)
